@@ -31,39 +31,61 @@ public class SmsReceiver extends BroadcastReceiver {
             return;
         }
 
-        if (! mContext.hasActiveCatalystInstance()) {
+        if (!mContext.hasActiveCatalystInstance()) {
             return;
         }
 
-        Log.d(
-            SmsListenerPackage.TAG,
-            String.format("%s: %s", message.getOriginatingAddress(), message.getMessageBody())
-        );
+        Log.d(SmsListenerPackage.TAG,
+                String.format("%s: %s", message.getOriginatingAddress(), message.getMessageBody()));
 
         WritableNativeMap receivedMessage = new WritableNativeMap();
 
         receivedMessage.putString("originatingAddress", message.getOriginatingAddress());
         receivedMessage.putString("body", message.getMessageBody());
 
-        mContext
-            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-            .emit(EVENT, receivedMessage);
+        mContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit(EVENT, receivedMessage);
+    }
+
+    private void receiveMergedMessage(String message, String originatingAddress) {
+        if (mContext == null) {
+            return;
+        }
+
+        if (!mContext.hasActiveCatalystInstance()) {
+            return;
+        }
+
+        Log.d(SmsListenerPackage.TAG, String.format("%s: %s", originatingAddress, message));
+
+        WritableNativeMap receivedMessage = new WritableNativeMap();
+
+        receivedMessage.putString("originatingAddress", originatingAddress);
+        receivedMessage.putString("body", message);
+
+        mContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit(EVENT, receivedMessage);
     }
 
     @Override
     public void onReceive(Context context, Intent intent) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            for (SmsMessage message : Telephony.Sms.Intents.getMessagesFromIntent(intent)) {
-                receiveMessage(message);
+            SmsMessage[] messages = Telephony.Sms.Intents.getMessagesFromIntent(intent);
+            String originatingAddress = messages[0].getOriginatingAddress();
+            String mergeMessage = "";
+
+            for (SmsMessage message : messages) {
+                mergeMessage = mergeMessage + message.getMessageBody();
             }
 
+            Log.d("ReactNative", "Used Merged Message");
+
+            receiveMergedMessage(mergeMessage, originatingAddress);
             return;
         }
 
         try {
             final Bundle bundle = intent.getExtras();
 
-            if (bundle == null || ! bundle.containsKey("pdus")) {
+            if (bundle == null || !bundle.containsKey("pdus")) {
                 return;
             }
 
